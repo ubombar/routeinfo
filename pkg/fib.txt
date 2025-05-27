@@ -1,0 +1,142 @@
+package structures
+
+import (
+	"net"
+	"strings"
+)
+
+// RadixNode represents a node in the radix tree.
+type RadixNode struct {
+	prefix   string
+	value    interface{}
+	children map[string]*RadixNode
+	isLeaf   bool
+}
+
+// NewRadixNode creates a new radix node.
+func NewRadixNode(prefix string) *RadixNode {
+	return &RadixNode{
+		prefix:   prefix,
+		children: make(map[string]*RadixNode),
+	}
+}
+
+// This struct defines an optimized version of the
+// forwarding information base.
+type FIB struct {
+	root *RadixNode
+}
+
+// NewRadixTree creates a new radix tree.
+func NewFIB() *FIB {
+	return &FIB{
+		root: NewRadixNode(""),
+	}
+}
+
+// Insert inserts a CIDR with associated value into the tree.
+func (t *FIB) Insert(cidr string, value interface{}) error {
+	ip, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return err
+	}
+
+	bits := ipToBitString(ip, ipnet.Mask)
+	node := t.root
+
+	for {
+		matchLen := commonPrefixLength(bits, node.prefix)
+		if matchLen < len(node.prefix) {
+			// Split the node
+			child := NewRadixNode(node.prefix[matchLen:])
+			child.children = node.children
+			child.value = node.value
+			child.isLeaf = node.isLeaf
+
+			node.prefix = node.prefix[:matchLen]
+			node.children = map[string]*RadixNode{string(child.prefix[0]): child}
+			node.isLeaf = false
+			node.value = nil
+		}
+
+		bits = bits[matchLen:]
+		if len(bits) == 0 {
+			node.value = value
+			node.isLeaf = true
+			return nil
+		}
+
+		nextBit := string(bits[0])
+		child, exists := node.children[nextBit]
+		if !exists {
+			child = NewRadixNode(bits)
+			child.value = value
+			child.isLeaf = true
+			node.children[nextBit] = child
+			return nil
+		}
+
+		node = child
+	}
+}
+
+// LongestPrefixMatch finds the value with the longest prefix match for the IP.
+func (t *FIB) LongestPrefixMatch(ip net.IP) (interface{}, bool) {
+	bits := ipToBitString(ip, net.CIDRMask(32, 32))
+	node := t.root
+	var lastValue interface{}
+	var found bool
+
+	for {
+		if node.isLeaf {
+			lastValue = node.value
+			found = true
+		}
+
+		if len(bits) == 0 {
+			break
+		}
+
+		nextBit := string(bits[0])
+		child, exists := node.children[nextBit]
+		if !exists {
+			break
+		}
+
+		if !strings.HasPrefix(bits, child.prefix) {
+			break
+		}
+
+		bits = bits[len(child.prefix):]
+		node = child
+	}
+
+	return lastValue, found
+}
+
+// ipToBitString converts an IP and mask to a binary string representation.
+func ipToBitString(ip net.IP, mask net.IPMask) string {
+	ip = ip.To4()
+	var bits strings.Builder
+	for i := 0; i < len(ip); i++ {
+		for j := 7; j >= 0; j-- {
+			if mask[i]&(1<<uint(j)) != 0 {
+				if ip[i]&(1<<uint(j)) != 0 {
+					bits.WriteByte('1')
+				} else {
+					bits.WriteByte('0')
+				}
+			}
+		}
+	}
+	return bits.String()
+}
+
+// commonPrefixLength returns the length of the common prefix between two strings.
+func commonPrefixLength(a, b string) int {
+	i := 0
+	for i < len(a) && i < len(b) && a[i] == b[i] {
+		i++
+	}
+	return i
+}
