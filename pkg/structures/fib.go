@@ -56,9 +56,9 @@ func (f *FIB) Insert(nearAddress *net.IPAddr, farAddress *net.IPAddr, defaultPre
 		mapp.Add(nearAddress.IP, hopp)
 	}
 
-	found = hopp.NextHopSet.Contains(farAddress)
+	found = hopp.Contains(farAddress)
 	if !found {
-		hopp.NextHopSet.Add(farAddress)
+		hopp.Add(farAddress)
 		return true
 	} else {
 		return false // if it exists, we don't add it again.
@@ -66,11 +66,28 @@ func (f *FIB) Insert(nearAddress *net.IPAddr, farAddress *net.IPAddr, defaultPre
 }
 
 type nextHopStruct struct {
-	NextHopSet Set[*net.IPAddr]
+	NextHopSet []*net.IPAddr
+}
+
+func (n *nextHopStruct) Add(ip *net.IPAddr) {
+	if !n.Contains(ip) {
+		n.NextHopSet = append(n.NextHopSet, ip)
+	}
+}
+
+func (n *nextHopStruct) Contains(ip *net.IPAddr) bool {
+	for _, existing := range n.NextHopSet {
+		if existing.IP.Equal(ip.IP) {
+			return true
+		}
+	}
+	return false
 }
 
 func newNextHopStruct() *nextHopStruct {
-	return &nextHopStruct{}
+	return &nextHopStruct{
+		NextHopSet: make([]*net.IPAddr, 0),
+	}
 }
 
 // nearFarsMap is a wrapper around a map from net.IP to X.
@@ -156,8 +173,13 @@ func (n *node) Search(ip net.IP) (*nearFarsMap, bool) {
 	cur := n
 	for cur != nil {
 		if cur.prefix != nil && cur.prefix.Contains(ip) && cur.isLeaf {
+			// Always update result if we find a matching leaf
 			result = cur.value
 			found = true
+		}
+		// Defensive check to avoid panics
+		if cur.prefix == nil {
+			break
 		}
 		bit := getBit(ip, maskLength(cur.prefix))
 		cur = cur.children[bit]

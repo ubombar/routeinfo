@@ -1,11 +1,16 @@
 package main
 
-import "github.com/ubombar/routeinfo/pkg/structures"
+import (
+	"fmt"
+
+	"github.com/ubombar/routeinfo/pkg/structures"
+)
 
 func main() {
 	f := structures.NewFIB()
 
 	f.InsertString("1.1.1.0", "1.1.1.1", 24)
+	fmt.Println(f.LookupString("1.1.1.0", "1.1.1.4"))
 
 	// root := &structures.Node{}
 	//
