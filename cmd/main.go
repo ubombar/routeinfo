@@ -2,15 +2,44 @@ package main
 
 import (
 	"fmt"
+	"net"
 
-	"github.com/ubombar/routeinfo/pkg/structures"
+	"github.com/ubombar/routeinfo/pkg/ds"
 )
 
 func main() {
-	f := structures.NewFIB()
+	f := ds.NewFowardingTable()
 
-	f.InsertString("1.1.1.0", "1.1.1.1", 24)
-	fmt.Println(f.LookupString("1.1.1.0", "1.1.1.4"))
+	linksCh := ds.ReadLinkRecords("./data/links__58cb52ec_5ee7_45be_8797_e019a2815a2b__f82cf048_aff0_4ead_96f7_3e05aa4b9b14.csv", -1, 100)
+	i := 0
+	total := 39829550
+
+	for l := range linksCh {
+		if l.NearAddr == "::" || l.FarAddr == "::" {
+			continue
+		}
+
+		if i%10000 == 0 {
+			fmt.Printf("Done %v/%v (%02f%%)\n", i, total, 100*float64(i)/float64(total))
+		}
+
+		destinationAddress := net.ParseIP(l.ProbeDstAddr).To16()
+		prefixLength := 24
+
+		destinationNetwork := ds.IPToNetwork(destinationAddress, prefixLength)
+		// nearAddress := net.ParseIP(l.NearAddr).To16()
+		farAddress := net.ParseIP(l.FarAddr).To16()
+
+		f.Insert(destinationNetwork, farAddress)
+		i += 1
+	}
+
+	fmt.Println("Loaded")
+
+	fmt.Println(f.Lookup(net.ParseIP("::ffff:223.255.246.224")))
+
+	// for {
+	// }
 
 	// root := &structures.Node{}
 	//

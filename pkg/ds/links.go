@@ -1,4 +1,4 @@
-package structures
+package ds
 
 import (
 	"encoding/csv"
