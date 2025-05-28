@@ -34,7 +34,7 @@ func NewFowardingTable(optimizeForIPv4 bool, defaultPrefixLength uint) *FT {
 // speciality is used in the routers.
 func (f *FT) Lookup(address net.IP) (*FTEntry, bool, error) {
 	// The IP address is onverted into a IPv6 String.
-	key := ConvertAddressToKey(address)
+	key := IPToKey(address)
 	_, item, found := f.tree.LongestPrefix(key)
 	if !found {
 		return nil, false, nil
@@ -50,7 +50,7 @@ func (f *FT) Lookup(address net.IP) (*FTEntry, bool, error) {
 // Check if the given network is already registered.
 func (f *FT) Contains(network net.IPNet) (*FTEntry, bool, error) {
 	// The IP address is onverted into a IPv6 String.
-	key := ConvertNetworkToKey(network)
+	key := NetworkToKey(network)
 	item, found := f.tree.Get(key)
 	if !found {
 		return nil, false, nil
@@ -76,9 +76,9 @@ func (f *FT) Insert(network net.IPNet, nexthop net.IP) error {
 
 	entry.Add(nexthop)
 
-	key := ConvertNetworkToKey(network)
-	fmt.Printf("key: %v\n", key)
+	key := NetworkToKey(network)
 	f.tree.Insert(key, entry)
+
 	return nil
 }
 
@@ -86,15 +86,14 @@ func (f *FT) Insert(network net.IPNet, nexthop net.IP) error {
 func (f *FT) String() string {
 	var sb strings.Builder
 
-	f.tree.Walk(func(networkKey string, v interface{}) bool {
-		networkPrefix, err := KeyToIP(networkKey, f.optimizeForIPv4)
+	for networkKey, entry := range f.tree.ToMap() {
+		networkPrefix, err := KeyToIP(networkKey)
 		if err != nil {
-			return true
+			panic(err)
 		}
 		network := IPToNetwork(networkPrefix, int(f.defaultPrefixLength))
-		sb.WriteString(fmt.Sprintf("\t%v -> %v", network.String(), v))
-		return true
-	})
+		sb.WriteString(fmt.Sprintf("\t%v -> %v\n", network.String(), entry))
+	}
 
 	return sb.String()
 }

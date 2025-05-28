@@ -11,7 +11,7 @@ import (
 
 // Convert the IP into a binary string. It automatically maps it into IPv6
 // if it is a IPv4.
-func ConvertAddressToKey(ip net.IP) string {
+func IPToKey(ip net.IP) string {
 	ip = ip.To16()
 	b := ""
 	for _, v := range ip {
@@ -21,19 +21,19 @@ func ConvertAddressToKey(ip net.IP) string {
 }
 
 // Convert the the given network into
-func ConvertNetworkToKey(network net.IPNet) string {
+func NetworkToKey(network net.IPNet) string {
 	// normalzie the prefix
 	prefix := network.IP.To16()
 
 	// convert the prefix to key
-	prefixKey := ConvertAddressToKey(prefix)
+	prefixKey := IPToKey(prefix)
 
 	prefixLength, _ := network.Mask.Size()
 	extra := 0
 
-	if IsMappedToIPv6(prefix) {
-		extra += 96
-	}
+	// if IsMappedToIPv6(prefix) {
+	// 	extra += 96
+	// }
 
 	return prefixKey[:prefixLength+extra]
 }
@@ -86,15 +86,14 @@ func AddPaddingToKey(key string) (string, error) {
 	return fmt.Sprintf("%s%s", key, postfix), nil
 }
 
-// Convert binary string (up to 128 bits) to IPv6 net.IP
-func KeyToIP(key string, addIPv6MappingPrefix bool) (net.IP, error) {
-	// Pad the key to get the 128 bit representation.
-	key, err := AddPaddingToKey(key, addIPv6MappingPrefix)
+// Convert the key into an IP address.
+func KeyToIP(key string) (net.IP, error) {
+	// Add paddings to they key
+	key, err := AddPaddingToKey(key)
 	if err != nil {
 		return net.IP{}, err
 	}
-	// Convert binary string to big.int
-	// HELLO MY NAME IS MECOBAYN!
+
 	n := new(big.Int)
 	n, ok := n.SetString(key, 2)
 	if !ok {
@@ -114,4 +113,14 @@ func KeyToIP(key string, addIPv6MappingPrefix bool) (net.IP, error) {
 	}
 
 	return net.IP(bytes).To16(), nil
+}
+
+// Convert the key with a certain prefix legnth to a network
+func KeyToNetwork(key string, prefixLength int) (net.IPNet, error) {
+	ip, err := KeyToIP(key)
+	if err != nil {
+		return net.IPNet{}, err
+	}
+
+	return IPToNetwork(ip, prefixLength), nil
 }
