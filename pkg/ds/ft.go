@@ -82,6 +82,19 @@ func (f *FT) Insert(network net.IPNet, nexthop net.IP) error {
 	return nil
 }
 
+// This function computes the number of hosts and number of entries.
+func (f *FT) NumAddressAndNetworks() (uint64, uint64) {
+	numAddresses := uint64(0)
+	numNetworks := uint64(0)
+	for networkKey := range f.tree.ToMap() {
+		numHosts := uint64(128 - len(networkKey))
+		numAddresses += numHosts
+		numNetworks += 1
+	}
+
+	return numAddresses, numNetworks
+}
+
 // Converts the forwarding table into a String
 func (f *FT) String() string {
 	var sb strings.Builder

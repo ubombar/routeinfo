@@ -64,11 +64,18 @@ func (f *FIB) String() string {
 	return sb.String()
 }
 
-func (f *FIB) Zort() {
-	// f.fibs.tree.Walk(func(key string, value interface{}) bool {
-	// 	fmt.Printf("Key: %s, Value: %v\n", key, value)
-	// 	return true // continue walking
-	// })
+// This function computes the number of hosts and number of entries for a
+// given address.
+func (f *FT) NumAddressAndNetworks() (uint64, uint64) {
+	numAddresses := uint64(0)
+	numNetworks := uint64(0)
+	for networkKey := range f.tree.ToMap() {
+		numHosts := uint64(1) << (128 - len(networkKey)) // num hosts
+		numAddresses += numHosts
+		numNetworks += 1
+	}
+
+	return numAddresses, numNetworks
 }
 
 // To CSV

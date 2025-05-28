@@ -10,7 +10,7 @@ import (
 func main() {
 	f := ds.NewFIB(1000, true, 24)
 
-	linksCh := ds.ReadLinkRecords("./data/links__58cb52ec_5ee7_45be_8797_e019a2815a2b__f82cf048_aff0_4ead_96f7_3e05aa4b9b14.csv", 10, 100)
+	linksCh := ds.ReadLinkRecords("./data/links__58cb52ec_5ee7_45be_8797_e019a2815a2b__f82cf048_aff0_4ead_96f7_3e05aa4b9b14.csv", -1, 100)
 	i := 0
 	total := 39829550
 
@@ -35,7 +35,6 @@ func main() {
 			panic(err)
 		}
 		i += 1
-		fmt.Printf("l: %v\n", l)
 	}
 
 	// ft, _ := f.Lookup(net.ParseIP("::ffff:74.125.119.25"))
