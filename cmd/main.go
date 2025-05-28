@@ -8,35 +8,67 @@ import (
 )
 
 func main() {
-	f := ds.NewFowardingTable()
+	// f := ds.NewFIB(1000, true, 24)
+	//
+	// linksCh := ds.ReadLinkRecords("./data/links__58cb52ec_5ee7_45be_8797_e019a2815a2b__f82cf048_aff0_4ead_96f7_3e05aa4b9b14.csv", 10, 100)
+	// i := 0
+	// total := 39829550
+	//
+	// for l := range linksCh {
+	// 	if l.NearAddr == "::" || l.FarAddr == "::" {
+	// 		i += 1
+	// 		continue
+	// 	}
+	//
+	// 	if i%10000 == 0 {
+	// 		fmt.Printf("Done %v/%v (%02f%%)\n", i, total, 100*float64(i)/float64(total))
+	// 	}
+	//
+	// 	destinationAddress := net.ParseIP(l.ProbeDstAddr).To16()
+	// 	prefixLength := 24
+	//
+	// 	destinationNetwork := ds.IPToNetwork(destinationAddress, prefixLength)
+	// 	nearAddress := net.ParseIP(l.NearAddr).To16()
+	// 	farAddress := net.ParseIP(l.FarAddr).To16()
+	//
+	// 	if err := f.Insert(nearAddress, destinationNetwork, farAddress); err != nil {
+	// 		panic(err)
+	// 	}
+	// 	i += 1
+	// 	fmt.Printf("l: %v\n", l)
+	// }
+	//
+	// fmt.Println("Loaded")
+	// // ft, _ := f.Lookup(net.ParseIP("::ffff:74.125.119.25"))
+	// // fmt.Println(f.ToCSV())
+	// fmt.Printf("%v\n", f)
+	//
+	// _, net, _ := net.ParseCIDR("192.168.1.0/24")
+	// fmt.Printf("net: %v\n", net.String())
 
-	linksCh := ds.ReadLinkRecords("./data/links__58cb52ec_5ee7_45be_8797_e019a2815a2b__f82cf048_aff0_4ead_96f7_3e05aa4b9b14.csv", -1, 100)
-	i := 0
-	total := 39829550
+	// TEST2
 
-	for l := range linksCh {
-		if l.NearAddr == "::" || l.FarAddr == "::" {
-			continue
-		}
+	f := ds.NewFIB(1000, false, 24)
+	a := net.ParseIP("192.168.1.1")
+	n1 := net.ParseIP("1.1.1.1")
+	n2 := net.ParseIP("2.2.2.2")
+	n3 := net.ParseIP("3.3.3.3")
+	_, d1, _ := net.ParseCIDR("10.1.0.0/24")
+	_, d2, _ := net.ParseCIDR("10.2.0.0/24")
+	_, d3, _ := net.ParseCIDR("10.3.0.0/24")
 
-		if i%10000 == 0 {
-			fmt.Printf("Done %v/%v (%02f%%)\n", i, total, 100*float64(i)/float64(total))
-		}
+	fmt.Printf("f.Insert(a, *d1, n1): %v\n", f.Insert(a, *d1, n1))
+	fmt.Printf("f.Insert(a, *d2, n2): %v\n", f.Insert(a, *d2, n2))
+	fmt.Printf("f.Insert(a, *d3, n3): %v\n", f.Insert(a, *d3, n3))
 
-		destinationAddress := net.ParseIP(l.ProbeDstAddr).To16()
-		prefixLength := 24
+	fmt.Printf("%v\n", f)
+	fmt.Printf("near_address,destination_prefix,next_hop\n%v\n", f.ToCSV())
 
-		destinationNetwork := ds.IPToNetwork(destinationAddress, prefixLength)
-		// nearAddress := net.ParseIP(l.NearAddr).To16()
-		farAddress := net.ParseIP(l.FarAddr).To16()
+	fmt.Println(ds.KeyToIP("000000000000000000000000000000000000000000000000000000000000000000000000000000001111111111111111000010100000001100000000", false))
 
-		f.Insert(destinationNetwork, farAddress)
-		i += 1
-	}
-
-	fmt.Println("Loaded")
-
-	fmt.Println(f.Lookup(net.ParseIP("::ffff:223.255.246.224")))
+	// tree := radix.New()
+	// tree.Insert("000000000000000000000000000000000000000000000000000000000000000000000000000000001111111111111111000010100000001000000000", "1")
+	// fmt.Println(tree.Get("000000000000000000000000000000000000000000000000000000000000000000000000000000001111111111111111000010100000001000000000"))
 
 	// for {
 	// }

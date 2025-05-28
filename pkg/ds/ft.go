@@ -2,32 +2,36 @@ package ds
 
 import (
 	"errors"
+	"fmt"
 	"net"
+	"strings"
 
 	"github.com/armon/go-radix"
 )
 
-const DefaultFtentrySize = 1
+const DefaultEntrySize = 1
 
 // This is the main implementation of the forwarding info as stated in the design document.
-// This struct uses a redix tree to perform lookups. Note that it has only one redix tree
-// and for each entry there is a mapper called NFMap. That mapper maps the given near address
-// to a set of far addresses.
+// This struct uses a redix tree to perform lookups.
 //
 // With this we only have one radix tree containing everyting.
 type FT struct {
-	tree *radix.Tree
+	tree                *radix.Tree
+	optimizeForIPv4     bool
+	defaultPrefixLength uint
 }
 
 // Creates a new forwarding table.
-func NewFowardingTable() *FT {
+func NewFowardingTable(optimizeForIPv4 bool, defaultPrefixLength uint) *FT {
 	return &FT{
-		tree: radix.New(),
+		tree:                radix.New(),
+		optimizeForIPv4:     optimizeForIPv4,
+		defaultPrefixLength: defaultPrefixLength,
 	}
 }
 
-// Performs a longest prefix lookup and returns the *NFMap and *NHSet objects. Returns
-// false and nil for all two of the objects.
+// Performs a longest prefix match to get the next hop of a given ip address. This
+// speciality is used in the routers.
 func (f *FT) Lookup(address net.IP) (*FTEntry, bool, error) {
 	// The IP address is onverted into a IPv6 String.
 	key := ConvertAddressToKey(address)
@@ -43,22 +47,56 @@ func (f *FT) Lookup(address net.IP) (*FTEntry, bool, error) {
 	}
 }
 
+// Check if the given network is already registered.
+func (f *FT) Contains(network net.IPNet) (*FTEntry, bool, error) {
+	// The IP address is onverted into a IPv6 String.
+	key := ConvertNetworkToKey(network)
+	item, found := f.tree.Get(key)
+	if !found {
+		return nil, false, nil
+	}
+
+	if setObj, ok := item.(*FTEntry); !ok {
+		return nil, false, errors.New("the expected type of NFMap is not an NFMap")
+	} else {
+		return setObj, true, nil
+	}
+}
+
 // Inserts the nexthop address to the reverse forwarding table.
 func (f *FT) Insert(network net.IPNet, nexthop net.IP) error {
-	entry, found, err := f.Lookup(nexthop)
+	entry, found, err := f.Contains(network)
 	if err != nil {
 		return err
 	}
 
 	if !found {
-		entry = newFTEntry(DefaultFtentrySize)
+		entry = newFTEntry(DefaultEntrySize)
 	}
 
 	entry.Add(nexthop)
 
 	key := ConvertNetworkToKey(network)
+	fmt.Printf("key: %v\n", key)
 	f.tree.Insert(key, entry)
 	return nil
+}
+
+// Converts the forwarding table into a String
+func (f *FT) String() string {
+	var sb strings.Builder
+
+	f.tree.Walk(func(networkKey string, v interface{}) bool {
+		networkPrefix, err := KeyToIP(networkKey, f.optimizeForIPv4)
+		if err != nil {
+			return true
+		}
+		network := IPToNetwork(networkPrefix, int(f.defaultPrefixLength))
+		sb.WriteString(fmt.Sprintf("\t%v -> %v", network.String(), v))
+		return true
+	})
+
+	return sb.String()
 }
 
 // FTEntry is an object that denotes the next hops of a router. It is a set because
@@ -72,7 +110,7 @@ type FTEntry struct {
 // Creates a new NHSet struct.
 func newFTEntry(size uint) *FTEntry {
 	return &FTEntry{
-		dset: make([]net.IP, size),
+		dset: make([]net.IP, 0, size),
 	}
 }
 
@@ -91,4 +129,18 @@ func (n *FTEntry) Contains(ip net.IP) bool {
 		}
 	}
 	return false
+}
+
+// ToString method returns a string representation of all IPs
+func (ft *FTEntry) String() string {
+	var sb strings.Builder
+	sb.WriteString("{")
+	for i, ip := range ft.dset {
+		sb.WriteString(ip.String())
+		if i < len(ft.dset)-1 {
+			sb.WriteString(", ")
+		}
+	}
+	sb.WriteString("}")
+	return sb.String()
 }
