@@ -2,6 +2,7 @@ package ds
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"strings"
 )
@@ -23,18 +24,24 @@ func NewFIB(size uint, optimizeForIPv4 bool, defaultPrefixLength uint) *FIB {
 }
 
 // Gets the FI of the router address.
-func (f *FIB) Get(address net.IP) (*FT, bool) {
-	key := IPToKey(address)
+func (f *FIB) Get(address *net.IP) (*FT, bool, error) {
+	key, err := IPToKey(address)
+	if err != nil {
+		return nil, false, err
+	}
 	if ft, ok := f.fibs[key]; !ok || ft == nil {
-		return nil, false
+		return nil, false, nil
 	} else {
-		return ft, true
+		return ft, true, nil
 	}
 }
 
 // Inserts a new forwarding info as defined in the forwarding info design document.
-func (f *FIB) Insert(address net.IP, network net.IPNet, nexthop net.IP) error {
-	key := IPToKey(address)
+func (f *FIB) Insert(address *net.IP, network *net.IPNet, nexthop *net.IP) error {
+	key, err := IPToKey(address)
+	if err != nil {
+		return err
+	}
 	if ft, ok := f.fibs[key]; !ok || ft == nil {
 		entry := NewFowardingTable(f.optimizeForIPv4, f.defaultPrefixLength)
 		err := entry.Insert(network, nexthop)
@@ -66,16 +73,22 @@ func (f *FIB) String() string {
 
 // This function computes the number of hosts and number of entries for a
 // given address.
-func (f *FT) NumAddressAndNetworks() (uint64, uint64) {
-	numAddresses := uint64(0)
-	numNetworks := uint64(0)
-	for networkKey := range f.tree.ToMap() {
-		numHosts := uint64(1) << (128 - len(networkKey)) // num hosts
-		numAddresses += numHosts
-		numNetworks += 1
+func (f *FIB) ToIPInfo(postfixLength int) string {
+	var sb strings.Builder
+
+	sb.WriteString("\"address\",\"num_networks\",\"num_hosts\"\n")
+
+	for k, v := range f.fibs {
+		nearAddress, err := KeyToIP(k)
+		if err != nil {
+			panic(err)
+		}
+		num_prefix := v.tree.Len()
+		num_hosts := 1 << postfixLength
+		sb.WriteString(fmt.Sprintf("\"%v\",\"%v\",\"%v\"\n", nearAddress, num_prefix, num_hosts))
 	}
 
-	return numAddresses, numNetworks
+	return sb.String()
 }
 
 // To CSV
@@ -89,13 +102,19 @@ func (f *FIB) ToCSV() string {
 				for _, farAddress := range farAddresses.dset {
 					networkPrefix, err := KeyToIP(networkKey)
 					if err != nil {
-						panic(err)
+						log.Printf("An error occured while printing: %v.\n", err)
+						continue
 					}
-					network := IPToNetwork(networkPrefix, int(f.defaultPrefixLength))
+					network, err := IPToNetwork(networkPrefix, int(f.defaultPrefixLength))
+					if err != nil {
+						log.Printf("An error occured while printing: %v.\n", err)
+						continue
+					}
 
 					nearAddress, err := KeyToIP(nearAddressKey)
 					if err != nil {
-						panic(err)
+						log.Printf("An error occured while printing: %v.\n", err)
+						continue
 					}
 					sb.WriteString(fmt.Sprintf("\"%v\",\"%v\",\"%v\"\n", nearAddress, network.String(), farAddress))
 				}

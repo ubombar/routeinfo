@@ -3,6 +3,7 @@ package ds
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"strings"
 
@@ -32,9 +33,12 @@ func NewFowardingTable(optimizeForIPv4 bool, defaultPrefixLength uint) *FT {
 
 // Performs a longest prefix match to get the next hop of a given ip address. This
 // speciality is used in the routers.
-func (f *FT) Lookup(address net.IP) (*FTEntry, bool, error) {
+func (f *FT) Lookup(address *net.IP) (*FTEntry, bool, error) {
 	// The IP address is onverted into a IPv6 String.
-	key := IPToKey(address)
+	key, err := IPToKey(address)
+	if err != nil {
+		return nil, false, err
+	}
 	_, item, found := f.tree.LongestPrefix(key)
 	if !found {
 		return nil, false, nil
@@ -48,9 +52,13 @@ func (f *FT) Lookup(address net.IP) (*FTEntry, bool, error) {
 }
 
 // Check if the given network is already registered.
-func (f *FT) Contains(network net.IPNet) (*FTEntry, bool, error) {
+func (f *FT) Contains(network *net.IPNet) (*FTEntry, bool, error) {
 	// The IP address is onverted into a IPv6 String.
-	key := NetworkToKey(network)
+	key, err := NetworkToKey(network)
+	if err != nil {
+		return nil, false, err
+	}
+
 	item, found := f.tree.Get(key)
 	if !found {
 		return nil, false, nil
@@ -64,7 +72,14 @@ func (f *FT) Contains(network net.IPNet) (*FTEntry, bool, error) {
 }
 
 // Inserts the nexthop address to the reverse forwarding table.
-func (f *FT) Insert(network net.IPNet, nexthop net.IP) error {
+func (f *FT) Insert(network *net.IPNet, nexthop *net.IP) error {
+	if network == nil || nexthop == nil {
+		return ErrGivenAddressNil
+	}
+	if network.IP == nil {
+		return ErrGivenAddressNil
+	}
+
 	entry, found, err := f.Contains(network)
 	if err != nil {
 		return err
@@ -76,23 +91,12 @@ func (f *FT) Insert(network net.IPNet, nexthop net.IP) error {
 
 	entry.Add(nexthop)
 
-	key := NetworkToKey(network)
-	f.tree.Insert(key, entry)
-
-	return nil
-}
-
-// This function computes the number of hosts and number of entries.
-func (f *FT) NumAddressAndNetworks() (uint64, uint64) {
-	numAddresses := uint64(0)
-	numNetworks := uint64(0)
-	for networkKey := range f.tree.ToMap() {
-		numHosts := uint64(128 - len(networkKey))
-		numAddresses += numHosts
-		numNetworks += 1
+	key, err := NetworkToKey(network)
+	if err != nil {
+		return err
 	}
-
-	return numAddresses, numNetworks
+	f.tree.Insert(key, entry)
+	return nil
 }
 
 // Converts the forwarding table into a String
@@ -104,7 +108,11 @@ func (f *FT) String() string {
 		if err != nil {
 			panic(err)
 		}
-		network := IPToNetwork(networkPrefix, int(f.defaultPrefixLength))
+		network, err := IPToNetwork(networkPrefix, int(f.defaultPrefixLength))
+		if err != nil {
+			log.Printf("An error occured while printing: %v.\n", err)
+			continue
+		}
 		sb.WriteString(fmt.Sprintf("\t%v -> %v\n", network.String(), entry))
 	}
 
@@ -116,27 +124,27 @@ func (f *FT) String() string {
 type FTEntry struct {
 	// IPs denote an array of net.IP addresses. Thanks to them we can perform
 	// some dset operations like add, contains etc.
-	dset []net.IP
+	dset []*net.IP
 }
 
 // Creates a new NHSet struct.
 func newFTEntry(size uint) *FTEntry {
 	return &FTEntry{
-		dset: make([]net.IP, 0, size),
+		dset: make([]*net.IP, 0, size),
 	}
 }
 
 // Adds the ip address if it is not already in the set.
-func (n *FTEntry) Add(ip net.IP) {
+func (n *FTEntry) Add(ip *net.IP) {
 	if !n.Contains(ip) {
 		n.dset = append(n.dset, ip)
 	}
 }
 
 // Checks if the given IP address is already in the set.
-func (n *FTEntry) Contains(ip net.IP) bool {
+func (n *FTEntry) Contains(ip *net.IP) bool {
 	for _, existing := range n.dset {
-		if existing.Equal(ip) {
+		if existing.Equal(*ip) {
 			return true
 		}
 	}
